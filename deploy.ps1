@@ -3,7 +3,8 @@ param(
     [string]$HostName = "rdr.nichsoft.io",
     [string]$UserName = "root",
     [string]$RemotePath = "/docker/rdr/site",
-    [string]$SiteUrl = "https://rdr.nichsoft.io"
+    [string]$SiteUrl = "https://rdr.nichsoft.io",
+    [string]$IdentityFile = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -13,6 +14,15 @@ $filesToDeploy = @(
     "index.html",
     "styles.css"
 )
+
+$sshArgs = @()
+$scpArgs = @()
+
+if ($IdentityFile) {
+    $resolvedIdentityFile = Resolve-Path -LiteralPath $IdentityFile
+    $sshArgs += "-i", $resolvedIdentityFile.Path
+    $scpArgs += "-i", $resolvedIdentityFile.Path
+}
 
 foreach ($file in $filesToDeploy) {
     $fullPath = Join-Path $projectRoot $file
@@ -24,7 +34,7 @@ foreach ($file in $filesToDeploy) {
 $remoteTarget = "$UserName@${HostName}`:$RemotePath/"
 
 if ($PSCmdlet.ShouldProcess($remoteTarget, "Create remote directory")) {
-    ssh "$UserName@$HostName" "mkdir -p '$RemotePath'"
+    & ssh @sshArgs "$UserName@$HostName" "mkdir -p '$RemotePath'"
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to create remote directory: $RemotePath"
     }
@@ -33,7 +43,7 @@ if ($PSCmdlet.ShouldProcess($remoteTarget, "Create remote directory")) {
 foreach ($file in $filesToDeploy) {
     $fullPath = Join-Path $projectRoot $file
     if ($PSCmdlet.ShouldProcess($remoteTarget, "Upload $file")) {
-        scp $fullPath "$remoteTarget$file"
+        & scp @scpArgs $fullPath "$remoteTarget$file"
         if ($LASTEXITCODE -ne 0) {
             throw "Failed to upload $file"
         }
